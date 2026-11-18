@@ -110,4 +110,20 @@ python scripts/grade_first_task.py --empty
 
 结果区分 passed、failed_tests、invalid_patch、test_execution_error、grader_error，保存补丁来源/哈希、测试名称修正、日志和依赖。退出码 0 表示通过，1 表示候选失败或无效，2 表示评测执行异常。
 
-这是可信本地代码的开发评测器，没有进程/网络隔离，不能用于运行不受信模型补丁的正式安全评测。读取完整 private 记录发生在 grader 端，未来 Agent 端仍必须隔离。下一步是实现产生候选补丁的最小工具与循环。
+这是可信本地代码的开发评测器，没有进程/网络隔离，不能用于运行不受信模型补丁的正式安全评测。读取完整 private 记录发生在 grader 端，未来 Agent 端仍必须隔离。
+
+## 最小 Harness 冒烟测试（scripted，2026-11-18）
+
+`scripts/run_first_task.py` 用预设动作驱动最小运行时，跑通“读 Issue → 列表/搜索/读文件 → 跑测试 → 打补丁 → 再跑测试 → 取 diff → 结束”，并故意夹带两个违规动作。实测产物在 `artifacts/harness/first-task/run-43c90c62/`：
+
+| 事实 | 结果 |
+|---|---|
+| 会话状态 | `finished`，10 步 |
+| 权限拦截 | 2 次：读工作区外的 private 数据、把测试补丁当代码改动 |
+| 工具错误 | 0 |
+| 候选补丁 | 489 字节，只改 `src/marshmallow/fields.py` 一行 |
+| 独立 grader | `passed`（77 个测试全部通过） |
+
+这证明运行时、权限与判分链路可用，**不证明模型能力**：动作序列和补丁内容都是预先写好的。设计原因见 [harness-design.md](harness-design.md)。
+
+下一步是实现任务加载与 grader 的泛化，再接真实模型适配器。

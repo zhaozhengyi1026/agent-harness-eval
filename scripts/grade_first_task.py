@@ -12,10 +12,10 @@ import os
 from pathlib import Path, PurePosixPath
 import subprocess
 import sys
-import tempfile
 import zipfile
 
-from verify_first_task import ROOT, TASK_ID, check_tests, ids, resolve_test_ids, run_logged
+from verify_first_task import (ROOT, TASK_ID, check_tests, ids, init_snapshot_repo,
+                               new_run_dir, resolve_test_ids, run_logged)
 
 
 class InvalidPatch(Exception):
@@ -31,7 +31,7 @@ def main():
     args = parser.parse_args()
     output_root = ROOT / "artifacts/candidate-grading"
     output_root.mkdir(parents=True, exist_ok=True)
-    output = Path(tempfile.mkdtemp(prefix="grade-", dir=str(output_root)))
+    output = new_run_dir(output_root, "grade-")
     report = {"instance_id": TASK_ID, "status": "grader_error", "checks": [],
               "created_at": datetime.now(timezone.utc).isoformat(),
               "python": sys.version, "executable": sys.executable, "platform": sys.platform,
@@ -56,6 +56,7 @@ def main():
                 if workspace.resolve() not in member.parents and member != workspace.resolve():
                     raise ValueError("Archive member escapes workspace")
             source.extractall(str(workspace))
+        init_snapshot_repo(workspace)
         env = os.environ.copy()
         env.update(PYTHONPATH=str(workspace / "src"), PYTHONDONTWRITEBYTECODE="1",
                    PYTEST_DISABLE_PLUGIN_AUTOLOAD="1")

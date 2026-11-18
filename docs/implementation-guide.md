@@ -67,17 +67,19 @@ Get-Content -Encoding UTF8 data\manifests\lite-dev.json
 
 本条任务的完成证据：`scripts/verify_first_task.py` 在 `artifacts/first-task/verify-0pcb_i9r/` 留下三组日志，结果为修复前目标测试 1 条按预期失败、回归 76 条通过、参考修复后 77 条通过。数据中 8 个参数化测试 ID 存在截断，脚本只在唯一前缀匹配时补全并记录映射。该结果是本机参考验证，不是官方容器评测。
 
-## 4. 实现工具与 scripted 循环
+## 4. 实现工具与 scripted 循环（已跑通，不变量测试待补）
 
-以下均待实现：定义 Task/Action/ToolResult/SessionState；实现工作区内文件、搜索、patch、测试和 diff；用预设动作走通读取→修改→测试→结束；保存每步事件与最终补丁，限制步数和时间。
+已完成：定义 Task/Action/ToolResult/Event；实现工作区内列目录、搜索、读文件、打补丁、跑测试和取 diff 工具；用预设动作走通读取→修改→测试→结束；保存 JSONL 事件轨迹、候选补丁和运行报告；限制步数与输出长度；在参数层面做 ALLOW/ASK/DENY 权限判定，越界读和改测试都被拒。
 
 验收：scripted 运行可重放，越界被拒绝，错误能被结构化表达。它验证运行时，不计入模型解决率。
+
+实测：`scripts/run_first_task.py` 在 `artifacts/harness/first-task/run-43c90c62/` 留下轨迹、补丁与报告，会话 10 步、2 次拒绝、0 次工具错误，候选补丁由独立 grader 判为 `passed`。设计原因见 [harness-design.md](harness-design.md)。仍未实现：状态持久化、上下文管理、检查点。
 
 ## 5. 接真实模型与独立 grader
 
 此时才选模型接口和费用上限，先实现一个适配器。只给模型 Issue、base 和开发工具；完成后在全新 grader 工作区应用候选补丁和隐藏测试。
 
-进度：单任务 grader 已实现（`scripts/grade_first_task.py`），用参考补丁、空修改和测试补丁三种输入验证过；模型适配器尚未实现，因此还没有真实轨迹与费用数据。
+进度：单任务 grader 已实现（`scripts/grade_first_task.py`），用参考补丁、空修改和测试补丁三种输入验证过；scripted 运行时已接通 grader。模型适配器尚未实现，因此还没有真实轨迹与费用数据。
 
 验收：得到真实轨迹、补丁、费用和独立判分。失败时区分定位、修改、工具、环境和预算问题，不只改 prompt 反复试。
 

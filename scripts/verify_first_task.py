@@ -13,13 +13,49 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
+import uuid
 import xml.etree.ElementTree as ET
 import zipfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
 TASK_ID = "marshmallow-code__marshmallow-1359"
+
+
+def new_run_dir(root, prefix):
+    """Create a unique run directory with a plain mkdir.
+
+    ``tempfile.mkdtemp`` is avoided on purpose: on Windows the directory it
+    creates has an ACL that blocks child processes such as ``git`` from
+    writing, which breaks snapshot creation.
+    """
+    root.mkdir(parents=True, exist_ok=True)
+    for _ in range(10):
+        candidate = root / (prefix + uuid.uuid4().hex[:8])
+        try:
+            candidate.mkdir()
+            return candidate
+        except FileExistsError:
+            continue
+    raise RuntimeError("could not create a unique run directory")
+
+
+def init_snapshot_repo(workspace):
+    """Make the extracted snapshot its own Git repository.
+
+    Without this, ``git apply`` run inside a directory that sits under another
+    repository treats the patch paths as outside the current prefix and
+    silently skips them ("Skipped patch"), leaving the workspace unchanged.
+    """
+    init = ["git", "init", "-q", "-b", "main"]
+    if subprocess.run(init, cwd=str(workspace), timeout=60,
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
+        subprocess.run(["git", "init", "-q"], cwd=str(workspace), check=True, timeout=60)
+    subprocess.run(["git", "add", "-A"], cwd=str(workspace), check=True, timeout=60)
+    subprocess.run(["git", "-c", "user.name=agent-harness",
+                    "-c", "user.email=harness@example.invalid",
+                    "commit", "-q", "-m", "base snapshot"],
+                   cwd=str(workspace), check=True, timeout=120)
 
 
 def ids(value):
@@ -115,7 +151,7 @@ def main():
         raise ValueError("Unexpected first-task test set; inspect dataset revision")
     output_root = ROOT / "artifacts/first-task"
     output_root.mkdir(parents=True, exist_ok=True)
-    output = Path(tempfile.mkdtemp(prefix="verify-", dir=str(output_root)))
+    output = new_run_dir(output_root, "verify-")
     report = {"instance_id": TASK_ID, "dataset_revision": manifest["revision"],
               "base_commit": task["base_commit"], "python": sys.version,
               "executable": sys.executable, "platform": sys.platform,
@@ -139,6 +175,7 @@ def main():
                 if workspace.resolve() not in resolved.parents and resolved != workspace.resolve():
                     raise ValueError("Archive member escapes workspace")
             source.extractall(str(workspace))
+        init_snapshot_repo(workspace)
         env["PYTHONPATH"] = str(workspace / "src")
         probe = [sys.executable, "-c", "import marshmallow; print(marshmallow.__file__)"]
         imported = subprocess.check_output(probe, cwd=str(workspace), env=env,

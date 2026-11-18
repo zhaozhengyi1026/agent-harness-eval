@@ -1,0 +1,11 @@
+.conda-env/
+.cache/
+__pycache__/
+*.pyc
+.env
+data/
+artifacts/
+.pytest_cache/
+*.egg-info/
+build/
+dist/

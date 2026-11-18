@@ -1,0 +1,10 @@
+name: agent-harness
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - datasets
+      - huggingface_hub
+# Export resolved versions after installation. Target repos need separate environments.
